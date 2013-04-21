@@ -95,6 +95,10 @@ for(i in 1:299) {
   print(stocks)
 }
 
+getLagIndex = function(frame, time, lagSec, start) {
+	frame$time = 0
+}
+
 
 # function getLagIndex(frame, time, lag(seconds), start)
   # Look in frame$time at start index
