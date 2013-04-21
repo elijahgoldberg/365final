@@ -5,6 +5,22 @@
 ######## DECLARATIONS ################
 ######################################
 
+getLagIndex = function(frame,time,lagsec,start) {
+	ftime = frame$time
+	last = start
+	for (i in (start+1):length(ftime)) {
+		if (!is.na(ftime[i])) {
+			if (as.double(time - ftime[i],units="secs") >= 0) {
+				if ((as.double(time - ftime[last],units="secs") > lagsec) & (as.double(time - ftime[i],units="secs") <= lagsec)) {
+					return(i)
+				}
+			} else {
+					return(NA)
+				}
+			last = i
+		}
+	}
+}
 
 ######################################
 ######## READ IN DATA ################
@@ -31,16 +47,6 @@ future5 = cbind(future5,time=paste(future5$d,future5$t))
 future5$time = as.character(future5$time)
 future5$time = as.POSIXct(strptime(future5$time,'%m/%d/%Y %I:%M:%S %p'))
 
-
-# Some extraneous code.
-# name = "stock1"
-# binder = "stock1"
-# for (i in 2:300) {
-	# name = c(name,paste("stock",i,sep=""))
-	# binder = paste(binder,",","stock",i,sep="")
-# }
-
-
 ######################################
 ######### PROCESSING #################
 ######################################
@@ -52,6 +58,7 @@ future5$time = as.POSIXct(strptime(future5$time,'%m/%d/%Y %I:%M:%S %p'))
 # Regardless, we ought to believe that we can predict the futures price at t=X with all the state variable data available at t=X, that is to say, all information that can be extracted from the historical data from t < X.
 
 # We will fit various regression models on the training set and then attempt to predict the futures price on the test set.  Instead of attempting to build a true trading simulator, we will see if we can adequately predict the futures price at a given time using only the information that would be available at that time -- for these purposes, every data point is functionally independent, because all relevant state information is captured in the explanatory variables at that time-point.  In a sense, we are asking: suppose I train a model on past information.  Can I take this model into the real world, calculate a few relevant quantities using available historical financials right now, and then predict the futures price right now?
+
 
 
 # Independent variables
@@ -94,11 +101,6 @@ for(i in 1:299) {
   print(sname)
   print(stocks)
 }
-
-getLagIndex = function(frame, time, lagSec, start) {
-	frame$time = 0
-}
-
 
 # function getLagIndex(frame, time, lag(seconds), start)
   # Look in frame$time at start index
