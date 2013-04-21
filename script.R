@@ -52,3 +52,67 @@ future5$time = as.POSIXct(strptime(future5$time,'%m/%d/%Y %I:%M:%S %p'))
 # Regardless, we ought to believe that we can predict the futures price at t=X with all the state variable data available at t=X, that is to say, all information that can be extracted from the historical data from t < X.
 
 # We will fit various regression models on the training set and then attempt to predict the futures price on the test set.  Instead of attempting to build a true trading simulator, we will see if we can adequately predict the futures price at a given time using only the information that would be available at that time -- for these purposes, every data point is functionally independent, because all relevant state information is captured in the explanatory variables at that time-point.  In a sense, we are asking: suppose I train a model on past information.  Can I take this model into the real world, calculate a few relevant quantities using available historical financials right now, and then predict the futures price right now?
+
+
+# Independent variables
+# Current close price
+# Change in close price
+# Positive change in close price
+
+# Dependent variables - futures
+# F(t-1) = last close of F not equal
+# Upside5 = Fhigh-Fclose at t-1
+# Downside5 = Flow - Fclose at t-1
+# Relative upside = sum of 30: Fhigh - Flow
+# Downside/upside T = max(lastT hi/low) - Fclose(t-1)
+# Ft-1 - Ft-2 = slope of future
+# ft-1 - Ft-24hr = "medium" term trend
+# Ft-1 = Ft-week = "long" term trend
+# (Ft-1 - Ft-2)*Vol(Ft-1)
+
+# Dependent varialbes - stocks
+# All F factors
+# Average S(t-1) - S(t-2) > 0
+# Weighted by S(t-1)/sum(S(t-1))
+# Different change
+
+price = 0
+for(i in 1:299) {
+  sname <- paste("stock", i, sep="")
+  price <- price + eval(parse(text=sname))[1000,"close"]
+  print(price)
+  print(sname)
+}
+
+# Stocks without NAs
+stocks = 0
+for(i in 1:299) {
+  sname <- paste("stock", i, sep="")
+  if(sum(is.na(eval(parse(text=sname))[,"close"])) == 0) {
+    stocks = stocks + 1
+  }
+  print(sname)
+  print(stocks)
+}
+
+
+# function getLagIndex(frame, time, lag(seconds), start)
+  # Look in frame$time at start index
+  # find the index # s.t.
+    # frameTime[i-1] - time < lagSec
+    # frameTime[i] - >= lagSec
+    # frameTime[i] - time < 0
+  # else NA
+
+# fucntion F[getLagIndex(F, 1, 5min, 0)]
+  # Next, F[getLagIndex(..., start=lastLagIndex)]
+
+# functions forEachExplanVar()
+  # create a T length vector
+    # Call get LagIndexFrom here
+    # where T = number of F times
+  # return that vector
+
+# Actual runtime
+  # Call all explanvar functions
+  # Insert results into master frame
