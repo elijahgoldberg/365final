@@ -22,6 +22,11 @@ getLagIndex = function(frame,time,lagsec,start) {
 	}
 }
 
+getFutureLag1 = function(indepTime) {
+	fulag1 = rep(NA,length(indepTime))
+	fulag1[1] = 
+}
+
 ######################################
 ######## READ IN DATA ################
 ######################################
