@@ -70,6 +70,8 @@ getFutureLagged = function(futures,frame,lag) {
 	
 }
 
+# So far, untested.  GetFutureLagged can be used to produce all sorts of futures regressors.  A simple example is to create a 10 min and 5 min lagged object with getFutureLagged(future5,future5,as.difftime(5,units="mins")) and getFutureLagged(future5,future5,as.difftime(10,units="mins")), and then subtract one from the other.  For most indices, this will be non-NA, and the new vector will give non-NA values for both-non-NA.  We should test this on a truncated version of futures.
+
 ######################################
 ######## READ IN DATA ################
 ######################################
