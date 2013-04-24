@@ -5,26 +5,69 @@
 ######## DECLARATIONS ################
 ######################################
 
+# Get the index in FRAME that is LAGSEC lagged behind TIME, starting to look from START.  TIME is a difftime class (see as.difftime(x,units="y"))).  Let FRAME be the full data frame we're searching through.
 getLagIndex = function(frame,time,lagsec,start) {
+
+	# Create placeholder vectors.
 	ftime = frame$time
 	last = start
+	
+	# iterate through the array.
 	for (i in (start+1):length(ftime)) {
+		
+		# If the frame's time is NA, do nothing.  There are many NAs in our data.
 		if (!is.na(ftime[i])) {
+			
+			# If the frame's time is already ahead of the time we want, skip it.  All times are chronological, so once we find a single frame time ahead of our time, we can go straight to NA.
 			if (as.double(time - ftime[i],units="secs") >= 0) {
+				
+				# If the frame's time is behind time, keep iterating until we find a time such that the last non-NA time is too far lagged and this time is lagged enough.  Return that time.
 				if ((as.double(time - ftime[last],units="secs") > lagsec) & (as.double(time - ftime[i],units="secs") <= lagsec)) {
 					return(i)
 				}
+				
+			# If ever we get past time, return NA because no later frame times will be correct.
 			} else {
 					return(NA)
-				}
+			}
+				
+			# As long as ftime[i] was not NA, we should remember it as the last non-NA time index.
 			last = i
 		}
 	}
+	
+	# If somehow we reach the end of the array without finding a good time, return NA.
+	return(NA)
 }
 
-getFutureLag1 = function(indepTime) {
+# Let FRAME be the full frame of things we're searching through. Let LAG be a difftime object created by as.difftime(x,units="y")
+getFutureLagged = function(futures,frame,lag) {
+
+	# Create placeholdee vectors.
+	indepTime = futures$time
 	fulag1 = rep(NA,length(indepTime))
-	fulag1[1] = 
+	indices = rep(NA,length(indepTime))
+	
+	# Iterate through the array.
+	for (i in 1:length(indepTime)) {
+		
+		# Let the lagged index for i be given by getLagIndex.  Start the search at one before the last index for which we found something.
+		newInd = getLagIndex(frame,indepTime[i],lag,max(2,indices,na.rm=TRUE)-1)
+		
+		# If no lagged index was found, let index be the value of the last known good index to start from, or let it be 1 if there is no last known good index.
+		if (is.na(newInd)) {
+			indices[i] = max(1,indices,na.rm=TRUE)
+			fulag[i] = NA
+		
+		# If we found a lagged index, let fulag[i] be the close price at that index, and let it be known that the next solution will be found near here.
+		} else {
+			indices[i] = newInd
+			fulag[i] = frame$close[newInd]
+		}
+	}
+	
+	return(fulag1)
+	
 }
 
 ######################################
