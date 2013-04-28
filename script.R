@@ -43,7 +43,7 @@ getLagIndex = function(frame,time,lagsec,start) {
 # Let FRAME be the full frame of things we're searching through. Let LAG be a difftime object created by as.difftime(x,units="y")
 getFutureLagged = function(futures,frame,lag) {
 
-	# Create placeholdee vectors.
+	# Create placeholder vectors.
 	indepTime = futures$time
 	fulag = rep(NA,length(indepTime))
 	indices = rep(NA,length(indepTime))
@@ -70,7 +70,13 @@ getFutureLagged = function(futures,frame,lag) {
 	
 }
 
-# So far, untested.  GetFutureLagged can be used to produce all sorts of futures regressors.  A simple example is to create a 10 min and 5 min lagged object with getFutureLagged(future5,future5,as.difftime(5,units="mins")) and getFutureLagged(future5,future5,as.difftime(10,units="mins")), and then subtract one from the other.  For most indices, this will be non-NA, and the new vector will give non-NA values for both-non-NA.  We should test this on a truncated version of futures.
+# Seems to work.
+
+getStockLagged = function(futures,stocknumber,lag) {
+	frame = eval(parse(text=paste("stock",stocknumber,sep="")))
+	laggedStock = getFutureLagged(futures,frame,lag)
+	return(laggedStock)
+}
 
 ######################################
 ######## READ IN DATA ################
