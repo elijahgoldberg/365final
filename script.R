@@ -45,7 +45,7 @@ getFutureLagged = function(futures,frame,lag) {
 
 	# Create placeholder vectors.
 	indepTime = futures$time
-	fulag = rep(NA,length(indepTime))
+	fulag1 = rep(NA,length(indepTime))
 	indices = rep(NA,length(indepTime))
 	
 	# Iterate through the array.
@@ -66,7 +66,7 @@ getFutureLagged = function(futures,frame,lag) {
 		}
 	}
 	
-	return(fulag)
+	return(fulag1)
 	
 }
 
@@ -84,7 +84,7 @@ getStockLagged = function(futures,stocknumber,lag) {
 
 # Read data from csv files.  Note that Excel was converted to csv separately.
 setwd("/Users/AKumar/Documents/Yale Year Two/Yale Spring 2013/STAT 365/Final Project/Raw Data/")
-setwd("./Raw Data/")
+setwd("C:/Development/Sites/365final/Raw Data/")
 for (i in 1:300) {
 	eval(parse(text=paste("stock",i," = read.csv(\'",as.character(i),"\',as.is=TRUE)",sep="")))
 	eval(parse(text=paste("names(stock",i,") = stock",i,"[2,]",sep="")))
