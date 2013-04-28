@@ -78,6 +78,57 @@ getStockLagged = function(futures,stocknumber,lag) {
 	return(laggedStock)
 }
 
+# Gets the best high in FRAME in the past LOOKBACK minutes, where LOOKBACK is a difftime object.
+getFutureBestHigh = function(futures,frame,lookback) {
+	indepTime = futures$time
+	besthigh = rep(NA,length(indepTime))
+	indices = rep(NA,length(indepTime))
+	
+	for (i in 1:length(indepTime)) {
+		firstCheck = getLagIndex(frame,indepTime[i],lookback,max(2,indices,na.rm=TRUE)-1)
+		potentialList = c()
+		
+		if (!is.na(firstCheck)) {
+			indices[i] = firstCheck
+			while (indepTime[i] > frame$time[firstCheck]) {
+				potentialList = c(potentialList,frame$high[firstCheck])
+				firstCheck = firstCheck + 1
+			}
+			besthigh[i]=max(potentialList,na.rm=TRUE)
+		} else {
+			indices[i]=NA
+			besthigh[i]=NA
+		}
+		
+	}
+	return(besthigh)
+}
+
+getFutureWorstLow = function(futures,frame,lookback) {
+	indepTime = futures$time
+	worstlow = rep(NA,length(indepTime))
+	indices = rep(NA,length(indepTime))
+	
+	for (i in 1:length(indepTime)) {
+		firstCheck = getLagIndex(frame,indepTime[i],lookback,max(2,indices,na.rm=TRUE)-1)
+		potentialList = c()
+		
+		if (!is.na(firstCheck)) {
+			indices[i] = firstCheck
+			while (indepTime[i] > frame$time[firstCheck]) {
+				potentialList = c(potentialList,frame$low[firstCheck])
+				firstCheck = firstCheck + 1
+			}
+			worstlow[i]=min(potentialList,na.rm=TRUE)
+		} else {
+			indices[i]=NA
+			worstlow[i]=NA
+		}
+		
+	}
+	return(worstlow)
+}
+
 ######################################
 ######## READ IN DATA ################
 ######################################
