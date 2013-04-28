@@ -148,6 +148,17 @@ getFutureVolLagged = function(futures,frame,lag) {
 	
 }
 
+# Type YEAR gives fraction of the year (0 to 355/365), type MONTH gives week of the month (i.e. 0, 1, 2, 3, or 4), any other type returns fraction of day (0 to 23/24).
+getTimeMarker = function(frame,type) {	
+	if (type=="year") {
+		return(as.numeric(strftime(frame$time,format="%j")) / 365)
+	} else if (type=="month") {
+		return(as.numeric(strftime(frame$time,format="%W")) %% 4)
+	} else {
+		return(as.numeric(strftime(frame$time,format="%H")) / 24)
+	}	
+}
+
 ######################################
 ######## READ IN DATA ################
 ######################################
