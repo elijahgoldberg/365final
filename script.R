@@ -214,12 +214,16 @@ future5$time = as.POSIXct(strptime(future5$time,'%m/%d/%Y %I:%M:%S %p'))
   f.tsub1.f.tsub2.multVol.tsub1 <- (lagClose - getFutureLagged(future5.sel, future5.sel, as.difftime(15, unit="mins"), "close")) * getFutureVolLagged(future5.sel, future5.sel, as.difftime(15, unit="mins"))
     
   evars1 <- data.frame(response, future5.sel$time, lagClose, fHighSubFClose.tSub1, fLowSubFClose.tsub1, highSubLow.last30, maxFHigh.last30.subFClose.tsub1, f.tsub1.subF.tsub2, f.tsub1.subF.tsubDay, f.tsub1.subF.tsubWeek, f.tsub1.f.tsub2.multVol.tsub1)
+ 
+  # 1. eVars for Ft - Ft-1 > 0:
+  # All bool >0: Fhigh - Fclose at t-1, Flow - Fclose at t-1, max/min high - low over last 30 minutes, max of Fhigh over last 30 minutes - Fclose at t-1, Ft-1 - Ft-2, Ft-1 - Ft-day, Ft-1 - Ft-week, Ft-1 - Ft-2 * vol t-1
   
+  evars2 <- data.frame((response>0), future5.sel$time, (fHighSubFClose.tSub1>0), (fLowSubFClose.tsub1>0), (highSubLow.last30>0), (maxFHigh.last30.subFClose.tsub1>0), (f.tsub1.subF.tsub2>0), (f.tsub1.subF.tsubDay>0), (f.tsub1.subF.tsubWeek>0), (f.tsub1.f.tsub2.multVol.tsub1>0))
+  
+
   # Clean variables
   rm(response, lagClose, fHighSubFClose.tSub1, fLowSubFClose.tsub1, highSubLow.last30, maxFHigh.last30.subFClose.tsub1, f.tsub1.subF.tsub2, f.tsub1.subF.tsubDay, f.tsub1.subF.tsubWeek, f.tsub1.f.tsub2.multVol.tsub1)
 
-
-  
 
   
 # The goal here is to create a data frame of variables that would theoretically be accessible at a given time point and regress these explanatory variables against the futures price at t.
