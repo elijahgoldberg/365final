@@ -5,7 +5,7 @@
 ######## DECLARATIONS ################
 ######################################
 
-# Get the index in FRAME that is LAGSEC lagged behind TIME, starting to look from START.  TIME is a difftime class (see as.difftime(x,units="y"))).  Let FRAME be the full data frame we're searching through.
+# Get the index in FRAME that is LAGSEC lagged behind TIME, starting to look from START.  LAGSEC is a difftime class (see as.difftime(x,units="y"))).  Let FRAME be the full data frame we're searching through.
 getLagIndex = function(frame,time,lagsec,start) {
 
 	# Create placeholder vectors.
@@ -19,10 +19,10 @@ getLagIndex = function(frame,time,lagsec,start) {
 		if (!is.na(ftime[i])) {
 			
 			# If the frame's time is already ahead of the time we want, skip it.  All times are chronological, so once we find a single frame time ahead of our time, we can go straight to NA.
-			if (as.double(time - ftime[i],units="secs") >= 0) {
+			if (as.double(time - ftime[i],units="secs") > 0) {
 				
 				# If the frame's time is behind time, keep iterating until we find a time such that the last non-NA time is too far lagged and this time is lagged enough.  Return that time.
-				if ((as.double(time - ftime[last],units="secs") > lagsec) & (as.double(time - ftime[i],units="secs") <= lagsec)) {
+				if ((as.double(time - ftime[last],units="secs") > lagsec) & (as.double(time - ftime[i],units="secs") <= as.double(lagsec,units="secs"))) {
 					return(i)
 				}
 				
@@ -57,12 +57,12 @@ getFutureLagged = function(futures,frame,lag) {
 		# If no lagged index was found, let index be the value of the last known good index to start from, or let it be 1 if there is no last known good index.
 		if (is.na(newInd)) {
 			indices[i] = max(1,indices,na.rm=TRUE)
-			fulag[i] = NA
+			fulag1[i] = NA
 		
 		# If we found a lagged index, let fulag[i] be the close price at that index, and let it be known that the next solution will be found near here.
 		} else {
 			indices[i] = newInd
-			fulag[i] = frame$close[newInd]
+			fulag1[i] = frame$close[newInd]
 		}
 	}
 	
