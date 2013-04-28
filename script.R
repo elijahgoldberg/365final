@@ -41,7 +41,9 @@ getLagIndex = function(frame,time,lagsec,start) {
 }
 
 # Let FRAME be the full frame of things we're searching through. Let LAG be a difftime object created by as.difftime(x,units="y")
-getFutureLagged = function(futures,frame,lag) {
+
+# ADDED var to getFutureLagged - to select variable from frame
+getFutureLagged = function(futures,frame,lag,var) {
 
 	# Create placeholder vectors.
 	indepTime = futures$time
@@ -62,7 +64,7 @@ getFutureLagged = function(futures,frame,lag) {
 		# If we found a lagged index, let fulag[i] be the close price at that index, and let it be known that the next solution will be found near here.
 		} else {
 			indices[i] = newInd
-			fulag1[i] = frame$close[newInd]
+			fulag1[i] = frame[newInd,var]
 		}
 	}
 	
@@ -197,16 +199,17 @@ future5$time = as.POSIXct(strptime(future5$time,'%m/%d/%Y %I:%M:%S %p'))
   future5.sel <- future5[1:1000,]
 
   # 1. eVars for Ft - Ft-1:
-  # Ft-1, Fhigh - Fclose at t-1, Flow - Fclose at t-1, sum of high - low over last 30 minutes, max of Fhigh over last 30 minutes - Fclose at t-1, Ft-1 - Ft-2, Ft-1 - Ft-24, Ft-1 - Ft-week, Ft-1 - Ft-2 * vol t-1
+  # Ft-1, Fhigh - Fclose at t-1, Flow - Fclose at t-1, sum of high - low over last 30 minutes, max of Fhigh over last 30 minutes - Fclose at t-1, Ft-1 - Ft-2, Ft-1 - Ft-day, Ft-1 - Ft-week, Ft-1 - Ft-2 * vol t-1
   
   close <- future5.sel$close
-  lagClose <- getFutureLagged(future5.sel, future5.sel, as.difftime(10, unit="mins"))
+  lagClose <- getFutureLagged(future5.sel, future5.sel, as.difftime(10, unit="mins"), "close")
   response <- close - lagClose
-  fHfCt1 <- 
-  fLfCt1 <-
+  fHighSubFClose.tSub1 <- getFutureLagged(future5.sel, future5.sel, as.difftime(10, unit="mins"), "high") - lagClose
+  fLowSubFClose.tsub1 <- getFutureLagged(future5.sel, future5.sel, as.difftime(10, unit="mins"), "low") - lagClose
+  f.tsub1.subF.tsub2 <- lagClose - getFutureLagged(future5.sel, future5.sel, as.difftime(15, unit="mins"), "close")
   
   evars1 <- data.frame(response = response, time = future5.sel$time)
-  evars1 <- cbind(evars1, lagClose)
+  evars1 <- cbind(evars1, lagClose, fHighSubFClose.tSub1, fLowSubFClose.tsub1, f.tsub1.subF.tsub2, )
 
   # 1. 
 
