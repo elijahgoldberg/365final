@@ -56,7 +56,7 @@ getFutureLagged = function(futures,frame,lag) {
 		
 		# If no lagged index was found, let index be the value of the last known good index to start from, or let it be 1 if there is no last known good index.
 		if (is.na(newInd)) {
-			indices[i] = max(1,indices,na.rm=TRUE)
+			indices[i] = NA
 			fulag1[i] = NA
 		
 		# If we found a lagged index, let fulag[i] be the close price at that index, and let it be known that the next solution will be found near here.
@@ -127,6 +127,36 @@ getFutureWorstLow = function(futures,frame,lookback) {
 		
 	}
 	return(worstlow)
+}
+
+getFutureVolLagged = function(futures,frame,lag) {
+	indepTime = futures$time
+	fulag1 = rep(NA,length(indepTime))
+	indices = rep(NA,length(indepTime))
+	for (i in 1:length(indepTime)) {
+		newInd = getLagIndex(frame,indepTime[i],lag,max(2,indices,na.rm=TRUE)-1)
+		if (is.na(newInd)) {
+			indices[i] = NA
+			fulag1[i] = NA
+		} else {
+			indices[i] = newInd
+			fulag1[i] = frame$volume[newInd]
+		}
+	}
+	
+	return(fulag1)
+	
+}
+
+# Type YEAR gives fraction of the year (0 to 355/365), type MONTH gives week of the month (i.e. 0, 1, 2, 3, or 4), any other type returns fraction of day (0 to 23/24).
+getTimeMarker = function(frame,type) {	
+	if (type=="year") {
+		return(as.numeric(strftime(frame$time,format="%j")) / 365)
+	} else if (type=="month") {
+		return(as.numeric(strftime(frame$time,format="%W")) %% 4)
+	} else {
+		return(as.numeric(strftime(frame$time,format="%H")) / 24)
+	}	
 }
 
 ######################################
