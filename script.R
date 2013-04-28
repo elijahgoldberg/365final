@@ -45,7 +45,7 @@ getFutureLagged = function(futures,frame,lag) {
 
 	# Create placeholdee vectors.
 	indepTime = futures$time
-	fulag1 = rep(NA,length(indepTime))
+	fulag = rep(NA,length(indepTime))
 	indices = rep(NA,length(indepTime))
 	
 	# Iterate through the array.
@@ -66,7 +66,7 @@ getFutureLagged = function(futures,frame,lag) {
 		}
 	}
 	
-	return(fulag1)
+	return(fulag)
 	
 }
 
@@ -78,6 +78,7 @@ getFutureLagged = function(futures,frame,lag) {
 
 # Read data from csv files.  Note that Excel was converted to csv separately.
 setwd("/Users/AKumar/Documents/Yale Year Two/Yale Spring 2013/STAT 365/Final Project/Raw Data/")
+setwd("./Raw Data/")
 for (i in 1:300) {
 	eval(parse(text=paste("stock",i," = read.csv(\'",as.character(i),"\',as.is=TRUE)",sep="")))
 	eval(parse(text=paste("names(stock",i,") = stock",i,"[2,]",sep="")))
@@ -101,6 +102,27 @@ future5$time = as.POSIXct(strptime(future5$time,'%m/%d/%Y %I:%M:%S %p'))
 ######### PROCESSING #################
 ######################################
 
+
+  ## Create master data-frames   ##
+
+  # Select subset of data to be used
+  future10.sel <- future10[1:500,]
+  future5.sel <- future5[1:1000,]
+
+  # 1. eVars for Ft - Ft-1:
+  # Ft-1, Fhigh - Fclose at t-1, Flow - Fclose at t-1, sum of high - low over last 30 minutes, max of Fhigh over last 30 minutes - Fclose at t-1, Ft-1 - Ft-2, Ft-1 - Ft-24, Ft-1 - Ft-week, Ft-1 - Ft-2 * vol t-1
+  
+  close <- future5.sel$close
+  lagClose <- getFutureLagged(future5.sel, future5.sel, as.difftime(10, unit="mins"))
+  response <- close - lagClose
+  evars1 <- data.frame(response = response, time = future5.sel$time)
+
+  # 1. 
+
+  # Clean variables
+  rm(close, lagClose, response)
+
+  
 # The goal here is to create a data frame of variables that would theoretically be accessible at a given time point and regress these explanatory variables against the futures price at t.
 
 # After creating this ultimate data frame, we will partition it into a test and training set.  Each row of the data frame represents all the potential predicting variables -- these may include time-dependent things such as slope, raw number, periods since last gain for both futures price movement and stock price movement as well as non-time dependent things.  Note that because this is backward looking, we may have to abandon some early values of futures price for which stock price information in the past is unavailable.
