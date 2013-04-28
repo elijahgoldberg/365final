@@ -172,7 +172,11 @@ future5$time = as.POSIXct(strptime(future5$time,'%m/%d/%Y %I:%M:%S %p'))
   close <- future5.sel$close
   lagClose <- getFutureLagged(future5.sel, future5.sel, as.difftime(10, unit="mins"))
   response <- close - lagClose
+  fHfCt1 <- 
+  fLfCt1 <-
+  
   evars1 <- data.frame(response = response, time = future5.sel$time)
+  evars1 <- cbind(evars1, lagClose)
 
   # 1. 
 
