@@ -6,6 +6,7 @@
 ######################################
 
 library(ggplot2)
+library(gplots)
 
 # Get the index in FRAME that is LAGSEC lagged behind TIME, starting to look from START.  LAGSEC is a difftime class (see as.difftime(x,units="y"))).  Let FRAME be the full data frame we're searching through.
 getLagIndex = function(frame,time,lagsec,start) {
@@ -352,40 +353,82 @@ pdf("future_price.pdf",width=10,height=7)
 print(ggplot() + geom_line(data=future5,aes(x=time,y=close)) + labs(title="Future Price over Time",x="Time",y="Close Price") + theme_classic() + theme(text=element_text(vjust=.25)))
 dev.off()
 
-pdf("stock_price.pdf",width=10,height=7)
-p = ggplot()
-k=300
-this = "print(p <- p"
-for(i in 1:k) {
-	this = paste(this," + geom_line(data=stock",i,",aes(x=time,y=close,color=rgb(.3,.3,",(i-1)/k,")),size=.4)",sep="")
-}
-this = paste(this," + labs(title='Stock Prices over Time',x='Time',y='Close Price') + theme_classic() + theme(text=element_text(vjust=.25),legend.position='none'))",sep="")
-eval(parse(text=this))
-dev.off()
+# This code took all night and didn't produce anything.
+# pdf("stock_price.pdf",width=10,height=7)
+# p = ggplot()
+# k=300
+# this = "print(p <- p"
+# for(i in 1:k) {
+	# this = paste(this," + geom_line(data=stock",i,",aes(x=time,y=close,color=rgb(.3,.3,",(i-1)/k,")),size=.4)",sep="")
+# }
+# this = paste(this," + labs(title='Stock Prices over Time',x='Time',y='Close Price') + theme_classic() + theme(text=element_text(vjust=.25),legend.position='none'))",sep="")
+# eval(parse(text=this))
+# dev.off()
 
 
 desiredRange = c(range(stock1$time)[1],range(future5$time)[2])
 s = which(future5$time==desiredRange[1])
 e = which(future5$time==desiredRange[2])
-stocks = data.frame(time=future5$time[s:e],close=numeric(length=length(future5$time[s:e])))
+stocks2 = data.frame(time=future5$time[s:e],close=numeric(length=length(future5$time[s:e])),count=numeric(length = length(future5$time[s:e])))
 k=300
 for (j in 1:k) {
 	this = eval(parse(text=paste("stock",j,sep="")))
-	for (i in 1:dim(stocks)[1]) {
-		if (!is.na(stocks[i,2])) {
-			if (length(this$close[which(this$time==stocks$time[i])]) != 0) {
-				stocks[i,2] = stocks[i,2] + this$close[which(this$time==stocks$time[i])][1]
-			} else {
-				stocks[i,2] = NA
+	print(j)
+	for (i in 1:dim(stocks2)[1]) {
+		if (!is.na(stocks2[i,2])) {
+			if (length(this$close[which(this$time==stocks2$time[i])]) != 0) {
+				stocks2[i,2] = stocks2[i,2] + this$close[which(this$time==stocks2$time[i])][1]
+				stocks2$count[i] = stocks2$count[i] + 1
 			}
 		}
 	}
 }
+stocks2 = data.frame(stocks2,avg = stocks2$close / stocks2$count)
+stocks3 = stocks2
+stocks3$avg = stocks3$avg*100
+noNaN = stocks3[-which(is.na(stocks3$avg)),]
 
-pdf("stock_and_future.pdf",width=10,height=7)
-print(ggplot() + geom_line(data=future5,aes(x=time,y=close)) + geom_point(data=stocks,aes(x=time,y=close),color="red",size=1) + labs(title="Future and Stock Prices over Time",x="Time",y="Close Price (Sum of Stocks)") + xlim(desiredRange) + theme_classic() + theme(text=element_text(vjust=.25)))
+pdf("stock_and_future_4.pdf",width=10,height=7)
+print(ggplot() + geom_line(data=future5,aes(x=time,y=close)) + geom_line(data=noNaN,aes(x=time,y=avg),color="red") + labs(title="Future and Stock Prices over Time",x="Time",y="Close Price (Average of Stocks*100)") + xlim(desiredRange) + theme_classic() + theme(text=element_text(vjust=.25))) + 
 dev.off()
 
+
+cors = rep(NA,301)
+covs = rep(NA,301)
+
+for (j in 1:300) {
+	print(j)
+	this = eval(parse(text=paste("stock",j,sep="")))
+	thisStock = data.frame(time=future5$time[s:e],closef = future5$close[s:e],closes = numeric(length=length(future5$time[s:e])))
+	for (i in 1:dim(thisStock)[1]) {
+		if (length(this$close[which(this$time==thisStock$time[i])]) != 0) {
+			thisStock[i,3] = this$close[which(this$time==thisStock$time[i])][1]
+		} else {
+			thisStock[i,3] = NA
+		}
+	}
+	cors[j] = cor(thisStock$closef,thisStock$closes,use="complete.obs")
+	covs[j] = var(thisStock$closef,thisStock$closes,na.rm=TRUE)
+}
+cors[301] = cor(future5$close[s:e],stocks3$avg,use="complete.obs")
+covs[301] = var(future5$close[s:e],stocks3$avg,na.rm=TRUE)
+corframe = data.frame(index = as.factor(1:300),cors=cors[1:300],covs=covs[1:300])
+
+sortedcov = order(x = abs(covs[1:300]),decreasing=TRUE)
+sortedcor = order(x=abs(cors[1:300]),decreasing=TRUE)
+both = data.frame(Covariances = sortedcov, Correlations = sortedcor)
+
+pdf("top correlates.pdf")
+textplot(both[1:15,],show.rownames=FALSE,mar=c(0.5,0.5,0.5,0.5))
+dev.off()
+
+pdf("correlations_stock_future.pdf")
+print(ggplot() + geom_bar(data=corframe,aes(x=index,y=cors)) + labs(x='Stock Number',y='Correlation with Future Price',title='Correlations between Futures and Stocks') + geom_hline(aes(yintercept=cors[301],color="red")) + theme_classic() + theme(legend.position='none',text=element_text(vjust=.25),axis.text.x=element_text(size=0),axis.ticks.x = element_line(size=0)) + ylim(-1,1))
+dev.off()
+
+pdf("covariances_stock_future.pdf")
+print(ggplot() + geom_bar(data=corframe,aes(x=index,y=covs)) + labs(x='Stock Number',y='Covariance with Future Price',title='Covariance between Futures and Stocks') + geom_hline(aes(yintercept=var(future5$close[s:e],stocks2$avg,na.rm=TRUE),color="red")) + theme_classic() + theme(legend.position='none',text=element_text(vjust=.25),axis.text.x=element_text(size=0),axis.ticks.x = element_line(size=0)))
+dev.off()
 
 
 
