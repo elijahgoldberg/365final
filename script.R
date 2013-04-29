@@ -20,17 +20,21 @@ getLagIndex = function(frame,time,lagsec,start) {
 		
 		# If the frame's time is NA, do nothing.  There are many NAs in our data.
 		if (!is.na(ftime[i])) {
+		  
 			
 			# If the frame's time is already ahead of the time we want, skip it.  All times are chronological, so once we find a single frame time ahead of our time, we can go straight to NA.
 			if (as.double(time - ftime[i],units="secs") > 0) {
+			  
 				
 				# If the frame's time is behind time, keep iterating until we find a time such that the last non-NA time is too far lagged and this time is lagged enough.  Return that time.
 				if ((as.double(time - ftime[last],units="secs") > lagsec) & (as.double(time - ftime[i],units="secs") <= as.double(lagsec,units="secs"))) {
+				  
 					return(i)
 				}
 				
 			# If ever we get past time, return NA because no later frame times will be correct.
 			} else {
+			  
 					return(NA)
 			}
 				
@@ -77,12 +81,13 @@ getFutureLagged = function(futures,frame,lag,var) {
 
 # Seems to work.
 
-getStockLagged = function(futures,stocknumber,lag) {
+getStockLagged = function(futures,stocknumber,lag,var) {
 	frame = eval(parse(text=paste("stock",stocknumber,sep="")))
-	laggedStock = getFutureLagged(futures,frame,lag)
+	laggedStock = getFutureLagged(futures,frame,lag,var)
 	return(laggedStock)
 }
 
+a <- getStockLagged(future5.sel,1,as.difftime(5, unit="mins"),"close")
 # Gets the best high in FRAME in the past LOOKBACK minutes, where LOOKBACK is a difftime object.
 getFutureBestHigh = function(futures,frame,lookback) {
 	indepTime = futures$time
@@ -182,7 +187,14 @@ glm.cv = function(data, seed, formula, response, family, k) {
   return(res)
 }
 
+library("randomForest")
+rf.cv = function(data, seed, formula, response, k) {
+  args = c(formula=formula, ntree=500, mtry=8, nodesize=5)
+  res = cv(data=data, seed=seed, k=k, response=response, func="randomForest", args=args)
+}
+
 cv = function(data, seed, k, response, func, args) {
+  data <- data[complete.cases(data),]
   n= nrow(data); p=ncol(data)
   set.seed(seed)
   id <- sample(1:n);data1=data[id,]
@@ -192,21 +204,26 @@ cv = function(data, seed, k, response, func, args) {
   for(i in 1:k) {
     test <- data1[group==i,]
     train <- data1[group!=i,]
-    argsWithData <- list(args, data=test)
-    m <- do.call(func, argsWithData)
+    if(func=="randomForest") {
+      m <- randomForest(response~.,data=train, ntree=as.numeric(args["ntree"]), mtry=as.numeric(args["mtry"]), nodesize=as.numeric(args["nodesize"]), keep.forest=TRUE)
+    }
+    else {
+      argsWithData <- list(args, data=train)
+      m <- do.call(func, argsWithData)
+    }
     m.yhat <- predict(m, test)
     nas <- as.numeric(na.action(na.omit(m.yhat)))
     nas.2 <- na.action(na.omit(test$response))
     m.yhat <- m.yhat[-unique(nas,nas.2)]
     test <- test[-unique(nas,nas.2),]
-    if(response == "linear") {
-      test.error[i] <- sqrt(sum((m.yhat-test$response)^2)/nrow(test)) 
-    }
-    if(response == "binomial") {
-      m.yhat <- as.numeric(m.yhat>.5)
-      tab <- table(test$response, m.yhat)
-      test.error[i] <- 1-sum(diag(tab))/sum(tab)
-    }
+      if(response == "linear") {
+        test.error[i] <- sqrt(sum((m.yhat-test$response)^2)/nrow(test)) 
+      }
+      if(response == "binomial") {
+        m.yhat <- as.numeric(m.yhat>.5)
+        tab <- table(test$response, m.yhat)
+        test.error[i] <- 1-sum(diag(tab))/sum(tab)
+      }
   }
   return(mean(test.error))
 }
@@ -242,18 +259,87 @@ future5$time = as.POSIXct(strptime(future5$time,'%m/%d/%Y %I:%M:%S %p'))
 ######### PROCESSING #################
 ######################################
 
+## Create master data-frames   ##
 
-  ## Create master data-frames   ##
+# Select subset of data to be used
+ids <- sample(1:nrow(future5),1000)
+future5.sel <- future5[1:1000,]
 
-  # Select subset of data to be used
-  future10.sel <- future10[1:500,]
-  future5.sel <- future5[1:1000,]
+# Lagged closes
+close <- future5.sel$close
+lagClose <- getFutureLagged(future5.sel, future5.sel, as.difftime(5, unit="mins"), "close")
+lagClose2 <- getFutureLagged(future5.sel, future5.sel, as.difftime(10, unit="mins"), "close")
+lagClose3 <- getFutureLagged(future5.sel, future5.sel, as.difftime(15, unit="mins"), "close")
+lagClose4 <- getFutureLagged(future5.sel, future5.sel, as.difftime(20, unit="mins"), "close")
+lagClose5 <- getFutureLagged(future5.sel, future5.sel, as.difftime(25, unit="mins"), "close")
+
+# First dataframe
+ev1 <- data.frame(response=(close-lagClose)>0, predictor=(lagClose-lagClose2)>0)
+ev1 <- ev1[complete.cases(ev1),]
+ev1$response <- factor(ev1$response)
+ev1$predictor <- factor(ev1$predictor)
+
+# Set up test/train
+n= nrow(ev1); p=ncol(ev1)
+set.seed(123)
+id <- sample(1:n);ev1.s=ev1[id,]
+group <- rep(1:k, n/k+1)[1:n]
+test <- ev1.s[group==i,]; train <- ev1.s[group!=i,]
+
+# Analyze with GLM
+t.2 <-train[which(train$predictor==TRUE),]
+t.3 <-train[which(train$predictor==FALSE),]
+train[train$predictor==TRUE,]
+
+m <- glm(response~predictor, data=train, family=binomial)
+m.yhat <- predict(m, test, type="response")
+tab <- table(test$response, m.yhat)
+1-sum(diag(tab))/sum(tab)
+# .4845361 error rate, slightly better than random
+
+# Add more lags
+# First dataframe
+ev <- data.frame(response=(close-lagClose)>0, (lagClose-lagClose2)>0, (lagClose2-lagClose3)>0, (lagClose3-lagClose4)>0, (lagClose4-lagClose5)>0)
+#ev.p <- data.frame((lagClose-lagClose2), (lagClose2-lagClose3))
+#y <- (close-lagClose)>0
+#y <- y[complete.cases(y)]
+#ev.p <- ev.p[complete.cases(ev.p),]
+#windows()
+#plot(ev.p, col=(y+1))
+ev <- ev[complete.cases(ev),]
+ev$response <- factor(ev$response)
+
+# Set up test/train
+n= nrow(ev); p=ncol(ev)
+set.seed(123)
+id <- sample(1:n);ev.s=ev[id,]
+group <- rep(1:k, n/k+1)[1:n]
+test <- ev.s[group==i,]; train <- ev.s[group!=i,]
+
+
+# Analyze with GLM
+m <- glm(response~., data=train, family=binomial)
+m.yhat <- predict(m, test, type="response")
+tab <- table(test$response, m.yhat)
+1-sum(diag(tab))/sum(tab)
+train.class <- as.numeric(m$fitted>1/2)
+tab <- table(train$response, train.class)
+1-sum(diag(tab))/sum(tab)
+m.yhat <- predict(m, test)
+  tab <- table(test$response, m.yhat)
+# .4845361 error rate, slightly better than random
+
+
 
   # 1. eVars for Ft:
   # Ft-1, Fhigh - Fclose at t-1, Flow - Fclose at t-1, max/min high - low over last 30 minutes, max of Fhigh over last 30 minutes - Fclose at t-1, Ft-1 - Ft-2, Ft-1 - Ft-day, Ft-1 - Ft-week, Ft-1 - Ft-2 * vol t-1
-  
-  close <- future5.sel$close
-  lagClose <- getFutureLagged(future5.sel, future5.sel, as.difftime(10, unit="mins"), "close")
+
+future5.sel <- future5[1:1000,]
+
+# Lagged closes
+close <- future5.sel$close
+lagClose <- getFutureLagged(future5.sel, future5.sel, as.difftime(5, unit="mins"), "close")
+lagClose2 <- getFutureLagged(future5.sel, future5.sel, as.difftime(10, unit="mins"), "close")
   response <- close
   fHighSubFClose.tSub1 <- getFutureLagged(future5.sel, future5.sel, as.difftime(10, unit="mins"), "high") - lagClose
   fLowSubFClose.tsub1 <- getFutureLagged(future5.sel, future5.sel, as.difftime(10, unit="mins"), "low") - lagClose
@@ -264,7 +350,7 @@ future5$time = as.POSIXct(strptime(future5$time,'%m/%d/%Y %I:%M:%S %p'))
   f.tsub1.subF.tsubWeek <- lagClose - getFutureLagged(future5.sel, future5.sel, as.difftime(7, unit="days"), "close")
   f.tsub1.f.tsub2.multVol.tsub1 <- (lagClose - getFutureLagged(future5.sel, future5.sel, as.difftime(15, unit="mins"), "close")) * getFutureVolLagged(future5.sel, future5.sel, as.difftime(15, unit="mins"))
     
-  evars1 <- data.frame(response, future5.sel$time, lagClose, fHighSubFClose.tSub1, fLowSubFClose.tsub1, highSubLow.last30, maxFHigh.last30.subFClose.tsub1, f.tsub1.subF.tsub2, f.tsub1.subF.tsubDay, f.tsub1.subF.tsubWeek, f.tsub1.f.tsub2.multVol.tsub1)
+  evars1 <- data.frame(response, time=future5.sel$time, lagClose, fHighSubFClose.tSub1, fLowSubFClose.tsub1, highSubLow.last30, maxFHigh.last30.subFClose.tsub1, f.tsub1.subF.tsub2, f.tsub1.subF.tsubDay, f.tsub1.subF.tsubWeek, f.tsub1.f.tsub2.multVol.tsub1)
  
 
   # 2. eVars for Ft - Ft-1:
@@ -272,11 +358,13 @@ future5$time = as.POSIXct(strptime(future5$time,'%m/%d/%Y %I:%M:%S %p'))
   
   response <- close - lagClose
   evars2 <- cbind(response = response, evars1[,-1])
+
   
   # 3. eVars for Ft - Ft-1 > 0:
   # Ft-1, Fhigh - Fclose at t-1, Flow - Fclose at t-1, max/min high - low over last 30 minutes, max of Fhigh over last 30 minutes - Fclose at t-1, Ft-1 - Ft-2, Ft-1 - Ft-day, Ft-1 - Ft-week, Ft-1 - Ft-2 * vol t-1
 
   evars3 <- cbind(response = (response>0), evars1[,-1])
+  evars3 <- evars3[complete.cases(evars3),]
 
   # 4. eVars for Ft - Ft-1 > 0:
   # All bool >0: Fhigh - Fclose at t-1, Flow - Fclose at t-1, max/min high - low over last 30 minutes, max of Fhigh over last 30 minutes - Fclose at t-1, Ft-1 - Ft-2, Ft-1 - Ft-day, Ft-1 - Ft-week, Ft-1 - Ft-2 * vol t-1
@@ -284,9 +372,6 @@ future5$time = as.POSIXct(strptime(future5$time,'%m/%d/%Y %I:%M:%S %p'))
   evars4 <- data.frame(response = (response>0), future5.sel$time, (fHighSubFClose.tSub1>0), (fLowSubFClose.tsub1>0), (highSubLow.last30>0), (maxFHigh.last30.subFClose.tsub1>0), (f.tsub1.subF.tsub2>0), (f.tsub1.subF.tsubDay>0), (f.tsub1.subF.tsubWeek>0), (f.tsub1.f.tsub2.multVol.tsub1>0))
   # Clean variables
   rm(response, lagClose, fHighSubFClose.tSub1, fLowSubFClose.tsub1, highSubLow.last30, maxFHigh.last30.subFClose.tsub1, f.tsub1.subF.tsub2, f.tsub1.subF.tsubDay, f.tsub1.subF.tsubWeek, f.tsub1.f.tsub2.multVol.tsub1)
-
-
-  # 3. eVars for Ft - Ft-1 with stock data:
 
 
 
@@ -300,9 +385,9 @@ windows()
 hist(evars1$response, breaks=30)
 
 # Generate results table
-methods.raw <- c("LM")
+methods.raw <- c("LM", "randomForest", "knn", "lasso", "stepwise")
 frames.raw <- c("evars1 (RMSE)", "evars2 (RMSE)")
-methods.class <- c("GLM (binomial)")
+methods.class <- c("GLM (binomial), CV", "GLM, 50/50", "randomForest, CV", "randomFOrest, 50/50", "LDA, 50/50", "QDA, 50/50", "kNN, CV", "kNN, 50/50", "")
 frames.class <- c("evars3 (missclassification)", "evars4 (missclassification)")
 res.raw <- data.frame(matrix(data=NA, nrow=length(methods.raw), ncol=length(frames.raw)))
 res.class <- data.frame(matrix(data=NA, nrow=length(methods.class), ncol=length(frames.class)))
@@ -316,12 +401,129 @@ res.raw[1,1] <- lm.cv(data=evars1, seed=321, formula="response ~ .", response="l
 # Baseline LM, evar2
 res.raw[1,2] <- lm.cv(data=evars2, seed=321, formula="response ~ .", response="linear", k=10)
 
-# Baseline LM, evar3
+# Baseline GLM, evar3
 res.class[1,1] <- glm.cv(data=evars3, 321, formula="response ~ .", family="binomial", response="binomial", k=10)
+data <- evars3
+n= nrow(data); p=ncol(data)
+set.seed(123)
+id <- sample(1:n);data1=data[id,]
+group <- rep(1:k, n/k+1)[1:n]
+data1$response <- factor(data1$response)
+test.error <- rep(0, 10)
+for(i in 1:k) {
+  test <- data1[group==i,]; train <- data1[group!=i,]
+  m <- glm(response~.,data=train,family=binomial)
+  m.yhat <- predict(m, test)
+  m.yhat <- as.numeric(m.yhat>.5)
+  tab <- table(test$response, m.yhat)
+  test.error[i] <- 1-sum(diag(tab))/sum(tab)
+}
+res.class[1,1] <- mean(test.error)
+res.class
 
-# Baseline LM, evar4
+n <- nrow(evars3)
+ids <- sample(1:n, n/2)
+train <- evars3[ids,]; test <- evars3[-ids,]
+m <- glm(response~.,train,family=binomial)
+m.yhat <- predict(m, test)
+m.yhat <- as.numeric(m.yhat>.5)
+tab <- table(test$response, m.yhat)
+res.class[2,1] <- 1-sum(diag(tab))/sum(tab)
+
+# Baseline GLM, evar4
 res.class[1,2] <- glm.cv(data=evars4, 321, formula="response ~ .", family="binomial",response="binomial", k=10)
 
+# randomForest, evar3
+data <- evars3[complete.cases(evars3),]
+n= nrow(data); p=ncol(data)
+set.seed(seed)
+id <- sample(1:n);data1=data[id,]
+group <- rep(1:k, n/k+1)[1:n]
+data1$response <- factor(data1$response)
+test.error <- rep(0, 10)
+for(i in 1:k) {
+  test <- data1[group==i,]; train <- data1[group!=i,]
+  m <- randomForest(response~.,data=train, ntree=500, mtry=10, nodesize=10)
+  m.yhat <- predict(m, test)
+  tab <- table(test$response, m.yhat)
+  test.error[i] <- 1-sum(diag(tab))/sum(tab)
+  rm(m,m.yhat,tab,test,train)
+  print(i)
+}
+res.class[3,1] <- mean(test.error)
+
+# randomForest, evar4)
+data <- evars4[complete.cases(evars4),]
+n= nrow(data); p=ncol(data)
+set.seed(seed)
+id <- sample(1:n);data1=data[id,]
+group <- rep(1:k, n/k+1)[1:n]
+data1$response <- factor(data1$response)
+test.error <- rep(0, 10)
+for(i in 1:k) {
+  test <- data1[group==i,]; train <- data1[group!=i,]
+  m <- randomForest(response~.,data=train, ntree=500, mtry=10, nodesize=10)
+  m.yhat <- predict(m, test)
+  tab <- table(test$response, m.yhat)
+  test.error[i] <- 1-sum(diag(tab))/sum(tab)
+  rm(m,m.yhat,tab,test,train)
+  print(i)
+}
+res.class[3,2] <- mean(test.error)
+
+
+# evars3, LDA & QDA
+data <- evars3[complete.cases(evars3),]
+n= nrow(data); p=ncol(data)
+set.seed(seed)
+id <- sample(1:n);data1=data[id,];data1$response =as.numeric(data1$response)
+group <- rep(1:k, n/k+1)[1:n]
+nsim <- 100
+test.error.lda <- rep(0, nsim)
+test.error.qda <- rep(0, nsim)
+for(i in 1:nsim) {
+  ids <- sample(1:nrow(data), 500)
+  test <- data[ids,]; train <- data[-ids,]
+  m.lda <- lda(response ~ ., train)
+  yhat <- predict(m.lda,test)$class
+  test.error.lda[i]=1-sum(diag(table(yhat,test[,1])))/nrow(test)
+  m.qda <- qda(response ~ ., train)
+  yhat <- predict(m.qda,test)$class
+  test.error.qda[i]=1-sum(diag(table(yhat,test[,1])))/nrow(test)
+}
+res.class[5,1] <- mean(test.error.lda)
+res.class[6,1] <- mean(test.error.qda)
+
+# knn, evar3
+data <- evars3[complete.cases(evars3),]
+n= nrow(data); p=ncol(data)
+set.seed(seed)
+id <- sample(1:n);data1=data[id,];data1$response =as.numeric(data1$response)
+group <- rep(1:k, n/k+1)[1:n]
+k.v <- c(1,3,5,7,11,15,21,25,31,35, 45,69,91, 101,125, 151)
+test.error <- matrix(0, nrow=10, ncol=length(k.v))
+library("class")
+for(i in 1:k) {
+  test <- data1[group==i,]; train <- data1[group!=i,]
+  for(j in 1:length(k.v)) {
+    knn.ghat <- knn(train=train[,3:11], test=test[,3:11],cl=as.factor(train[,1]),k=k.v[j])
+    test.error[i,j] <- sum(as.factor(test[,1])!= knn.ghat)/nrow(test)
+  }
+}
+err <- colMeans(test.error)
+which.min(err)
+res.class[7,1] <- min(err)
+
+n <- nrow(evars3)
+ids <- sample(1:n, n/2)
+test.error <- rep(0, length(k.v))
+train <- evars3[ids,]; test <- evars3[-ids,]
+for(j in 1:length(k.v)) {
+  knn.ghat <- knn(train=train[,3:11], test=test[,3:11],cl=as.factor(train[,1]),k=k.v[j])
+  test.error[j] <- sum(as.factor(test[,1])!= knn.ghat)/nrow(test)
+}
+
+res.class[8,1] <- min(test.error)
 # The goal here is to create a data frame of variables that would theoretically be accessible at a given time point and regress these explanatory variables against the futures price at t.
 
 # After creating this ultimate data frame, we will partition it into a test and training set.  Each row of the data frame represents all the potential predicting variables -- these may include time-dependent things such as slope, raw number, periods since last gain for both futures price movement and stock price movement as well as non-time dependent things.  Note that because this is backward looking, we may have to abandon some early values of futures price for which stock price information in the past is unavailable.
