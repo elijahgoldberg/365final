@@ -5,6 +5,8 @@
 ######## DECLARATIONS ################
 ######################################
 
+library(ggplot2)
+
 # Get the index in FRAME that is LAGSEC lagged behind TIME, starting to look from START.  LAGSEC is a difftime class (see as.difftime(x,units="y"))).  Let FRAME be the full data frame we're searching through.
 getLagIndex = function(frame,time,lagsec,start) {
 
@@ -541,6 +543,54 @@ res.class[8,1] <- min(test.error)
 # eVars for Ft:
 # fraction of year / month / day it currently is,
 # Ft-1, Ft-2, Ft-hour, Ft-24h, Ft-wk, Ft-1*vol, (Ft-1 - Ft-2)*vol, Ft-1 - Ft-2
+
+
+
+##########################################
+######## DESCRIPTIVE STATISTICS ##########
+##########################################
+
+pdf("future_price.pdf",width=10,height=7)
+print(ggplot() + geom_line(data=future5,aes(x=time,y=close)) + labs(title="Future Price over Time",x="Time",y="Close Price") + theme_classic() + theme(text=element_text(vjust=.25)))
+dev.off()
+
+pdf("stock_price.pdf",width=10,height=7)
+p = ggplot()
+k=300
+this = "print(p <- p"
+for(i in 1:k) {
+	this = paste(this," + geom_line(data=stock",i,",aes(x=time,y=close,color=rgb(.3,.3,",(i-1)/k,")),size=.4)",sep="")
+}
+this = paste(this," + labs(title='Stock Prices over Time',x='Time',y='Close Price') + theme_classic() + theme(text=element_text(vjust=.25),legend.position='none'))",sep="")
+eval(parse(text=this))
+dev.off()
+
+
+desiredRange = c(range(stock1$time)[1],range(future5$time)[2])
+s = which(future5$time==desiredRange[1])
+e = which(future5$time==desiredRange[2])
+stocks = data.frame(time=future5$time[s:e],close=numeric(length=length(future5$time[s:e])))
+k=300
+for (j in 1:k) {
+	this = eval(parse(text=paste("stock",j,sep="")))
+	for (i in 1:dim(stocks)[1]) {
+		if (!is.na(stocks[i,2])) {
+			if (length(this$close[which(this$time==stocks$time[i])]) != 0) {
+				stocks[i,2] = stocks[i,2] + this$close[which(this$time==stocks$time[i])][1]
+			} else {
+				stocks[i,2] = NA
+			}
+		}
+	}
+}
+
+pdf("stock_and_future.pdf",width=10,height=7)
+print(ggplot() + geom_line(data=future5,aes(x=time,y=close)) + geom_point(data=stocks,aes(x=time,y=close),color="red",size=1) + labs(title="Future and Stock Prices over Time",x="Time",y="Close Price (Sum of Stocks)") + xlim(desiredRange) + theme_classic() + theme(text=element_text(vjust=.25)))
+dev.off()
+
+
+
+
 
 
 # Independent variables
