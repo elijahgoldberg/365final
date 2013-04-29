@@ -161,6 +161,54 @@ getTimeMarker = function(frame,type) {
 	}	
 }
 
+# Where family is either linear or binomial
+# Returns either average missclassification or 
+
+
+glm.cv(evars3, 123, "response ~ .", "binomial", "binomial", 10)
+
+lm.cv = function(data, seed, formula, response, k) {
+  args = c(formula=formula)
+  res = cv(data=data, seed=seed, k=k, response=response, func="lm", args=args)
+  return(res)
+}
+
+glm.cv = function(data, seed, formula, response, family, k) {
+  args = c(formula=formula, family=family)
+  res = cv(data=data, seed=seed, k=k, response=response, func="glm", args=args)
+  return(res)
+}
+
+cv = function(data, seed, k, response, func, args) {
+  n= nrow(data); p=ncol(data)
+  set.seed(seed)
+  id <- sample(1:n);data1=data[id,]
+  group <- rep(1:k, n/k+1)[1:n]
+  
+  test.error <- rep(0, k)
+  for(i in 1:k) {
+    test <- data1[group==i,]
+    train <- data1[group!=i,]
+    argsWithData <- list(args, data=test)
+    m <- do.call(func, argsWithData)
+    m.yhat <- predict(m, test)
+    nas <- as.numeric(na.action(na.omit(m.yhat)))
+    nas.2 <- na.action(na.omit(test$response))
+    m.yhat <- m.yhat[-unique(nas,nas.2)]
+    test <- test[-unique(nas,nas.2),]
+    if(response == "linear") {
+      test.error[i] <- sqrt(sum((m.yhat-test$response)^2)/nrow(test)) 
+    }
+    if(response == "binomial") {
+      m.yhat <- as.numeric(m.yhat>.5)
+      tab <- table(test$response, m.yhat)
+      test.error[i] <- 1-sum(diag(tab))/sum(tab)
+    }
+  }
+  return(mean(test.error))
+}
+
+
 ######################################
 ######## READ IN DATA ################
 ######################################
@@ -198,12 +246,12 @@ future5$time = as.POSIXct(strptime(future5$time,'%m/%d/%Y %I:%M:%S %p'))
   future10.sel <- future10[1:500,]
   future5.sel <- future5[1:1000,]
 
-  # 1. eVars for Ft - Ft-1:
+  # 1. eVars for Ft:
   # Ft-1, Fhigh - Fclose at t-1, Flow - Fclose at t-1, max/min high - low over last 30 minutes, max of Fhigh over last 30 minutes - Fclose at t-1, Ft-1 - Ft-2, Ft-1 - Ft-day, Ft-1 - Ft-week, Ft-1 - Ft-2 * vol t-1
   
   close <- future5.sel$close
   lagClose <- getFutureLagged(future5.sel, future5.sel, as.difftime(10, unit="mins"), "close")
-  response <- close - lagClose
+  response <- close
   fHighSubFClose.tSub1 <- getFutureLagged(future5.sel, future5.sel, as.difftime(10, unit="mins"), "high") - lagClose
   fLowSubFClose.tsub1 <- getFutureLagged(future5.sel, future5.sel, as.difftime(10, unit="mins"), "low") - lagClose
   highSubLow.last30 <- getFutureBestHigh(future5.sel, future5.sel, as.difftime(30, unit="mins")) - getFutureWorstLow(future5.sel, future5.sel, as.difftime(30, unit="mins"))
@@ -215,17 +263,62 @@ future5$time = as.POSIXct(strptime(future5$time,'%m/%d/%Y %I:%M:%S %p'))
     
   evars1 <- data.frame(response, future5.sel$time, lagClose, fHighSubFClose.tSub1, fLowSubFClose.tsub1, highSubLow.last30, maxFHigh.last30.subFClose.tsub1, f.tsub1.subF.tsub2, f.tsub1.subF.tsubDay, f.tsub1.subF.tsubWeek, f.tsub1.f.tsub2.multVol.tsub1)
  
-  # 1. eVars for Ft - Ft-1 > 0:
-  # All bool >0: Fhigh - Fclose at t-1, Flow - Fclose at t-1, max/min high - low over last 30 minutes, max of Fhigh over last 30 minutes - Fclose at t-1, Ft-1 - Ft-2, Ft-1 - Ft-day, Ft-1 - Ft-week, Ft-1 - Ft-2 * vol t-1
-  
-  evars2 <- data.frame((response>0), future5.sel$time, (fHighSubFClose.tSub1>0), (fLowSubFClose.tsub1>0), (highSubLow.last30>0), (maxFHigh.last30.subFClose.tsub1>0), (f.tsub1.subF.tsub2>0), (f.tsub1.subF.tsubDay>0), (f.tsub1.subF.tsubWeek>0), (f.tsub1.f.tsub2.multVol.tsub1>0))
-  
 
+  # 2. eVars for Ft - Ft-1:
+  # Ft-1, Fhigh - Fclose at t-1, Flow - Fclose at t-1, max/min high - low over last 30 minutes, max of Fhigh over last 30 minutes - Fclose at t-1, Ft-1 - Ft-2, Ft-1 - Ft-day, Ft-1 - Ft-week, Ft-1 - Ft-2 * vol t-1
+  
+  response <- close - lagClose
+  evars2 <- cbind(response = response, evars1[,-1])
+  
+  # 3. eVars for Ft - Ft-1 > 0:
+  # Ft-1, Fhigh - Fclose at t-1, Flow - Fclose at t-1, max/min high - low over last 30 minutes, max of Fhigh over last 30 minutes - Fclose at t-1, Ft-1 - Ft-2, Ft-1 - Ft-day, Ft-1 - Ft-week, Ft-1 - Ft-2 * vol t-1
+
+  evars3 <- cbind(response = (response>0), evars1[,-1])
+
+  # 4. eVars for Ft - Ft-1 > 0:
+  # All bool >0: Fhigh - Fclose at t-1, Flow - Fclose at t-1, max/min high - low over last 30 minutes, max of Fhigh over last 30 minutes - Fclose at t-1, Ft-1 - Ft-2, Ft-1 - Ft-day, Ft-1 - Ft-week, Ft-1 - Ft-2 * vol t-1
+
+  evars4 <- data.frame(response = (response>0), future5.sel$time, (fHighSubFClose.tSub1>0), (fLowSubFClose.tsub1>0), (highSubLow.last30>0), (maxFHigh.last30.subFClose.tsub1>0), (f.tsub1.subF.tsub2>0), (f.tsub1.subF.tsubDay>0), (f.tsub1.subF.tsubWeek>0), (f.tsub1.f.tsub2.multVol.tsub1>0))
   # Clean variables
   rm(response, lagClose, fHighSubFClose.tSub1, fLowSubFClose.tsub1, highSubLow.last30, maxFHigh.last30.subFClose.tsub1, f.tsub1.subF.tsub2, f.tsub1.subF.tsubDay, f.tsub1.subF.tsubWeek, f.tsub1.f.tsub2.multVol.tsub1)
 
 
-  
+  # 3. eVars for Ft - Ft-1 with stock data:
+
+
+
+
+######################################
+######### ANALYSIS ###################
+######################################
+
+# EDA
+windows()
+hist(evars1$response, breaks=30)
+
+# Generate results table
+methods.raw <- c("LM")
+frames.raw <- c("evars1 (RMSE)", "evars2 (RMSE)")
+methods.class <- c("GLM (binomial)")
+frames.class <- c("evars3 (missclassification)", "evars4 (missclassification)")
+res.raw <- data.frame(matrix(data=NA, nrow=length(methods.raw), ncol=length(frames.raw)))
+res.class <- data.frame(matrix(data=NA, nrow=length(methods.class), ncol=length(frames.class)))
+row.names(res.raw) <- methods.raw; colnames(res.raw) <- frames.raw
+row.names(res.class) <- methods.class; colnames(res.class) <- frames.class
+
+
+# Baseline LM, evar1
+res.raw[1,1] <- lm.cv(data=evars1, seed=321, formula="response ~ .", response="linear", k=10)
+
+# Baseline LM, evar2
+res.raw[1,2] <- lm.cv(data=evars2, seed=321, formula="response ~ .", response="linear", k=10)
+
+# Baseline LM, evar3
+res.class[1,1] <- glm.cv(data=evars3, 321, formula="response ~ .", family="binomial", response="binomial", k=10)
+
+# Baseline LM, evar4
+res.class[1,2] <- glm.cv(data=evars4, 321, formula="response ~ .", family="binomial",response="binomial", k=10)
+
 # The goal here is to create a data frame of variables that would theoretically be accessible at a given time point and regress these explanatory variables against the futures price at t.
 
 # After creating this ultimate data frame, we will partition it into a test and training set.  Each row of the data frame represents all the potential predicting variables -- these may include time-dependent things such as slope, raw number, periods since last gain for both futures price movement and stock price movement as well as non-time dependent things.  Note that because this is backward looking, we may have to abandon some early values of futures price for which stock price information in the past is unavailable.
